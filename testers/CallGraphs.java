@@ -50,5 +50,6 @@ class A
 	}
 	
 	public void bar() {
+		System.out.println("External foo of class A");
 	}
 }

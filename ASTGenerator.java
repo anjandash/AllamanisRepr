@@ -31,7 +31,10 @@ public class ASTGenerator {
 
     static ArrayList<ParserRuleContext> masterCtx = new ArrayList<ParserRuleContext>();
     static ArrayList<ArrayList[]> masterMemory = new ArrayList<ArrayList[]>();
-    static ArrayList[] baseClassArray = new ArrayList[5];
+    // static ArrayList[] baseClassArray = new ArrayList[5];
+
+    static ArrayList[] baseClassTargetArray;
+    static ParserRuleContext currentmctx;
 
     private static String readFile(String filepath) throws IOException {
         File file = new File(filepath);
@@ -72,6 +75,8 @@ public class ASTGenerator {
                 generateAST(ctx, false, 0, classTagValue);
                 mctx = ctx;
 
+                ArrayList[] baseClassArray = new ArrayList[5];
+
                 baseClassArray[0] = LineNum;
                 baseClassArray[1] = Type;
                 baseClassArray[2] = Content;
@@ -102,13 +107,402 @@ public class ASTGenerator {
             //printReturnsTo();
             //printFormalArgs();
 
+            doSomeMagic();
+
         System.out.println("}");
 
     }
 
+    private static void doSomeMagic(){
+        //
+
+        ArrayList<ParserRuleContext> llmasterCtx = masterCtx;
+        ArrayList<ArrayList[]> llmasterMemory = masterMemory;
+
+        // Run a loop over every baseClassTargetArray
+
+        //System.out.println("MEM SIZE: "+llmasterMemory.size());
+
+        for(int i=0; i<llmasterMemory.size(); i++){
+
+            baseClassTargetArray = llmasterMemory.get(i);
+            currentmctx =  llmasterCtx.get(i);
+
+            ArrayList<String> llLineNum = baseClassTargetArray[0];
+            ArrayList<String> llType = baseClassTargetArray[1];
+            ArrayList<String> llContent = baseClassTargetArray[2];
+            ArrayList<Integer> llCodeLine = baseClassTargetArray[3];
+            ArrayList<Integer> llCharPos = baseClassTargetArray[4];
+
+            String classlabel = "";
+            String classrule = "";
+            String classcontent = "";
+            String classline = "";
+            String classcharpos = "";
+
+            //System.out.println("CLASS SIZE: "+llLineNum.size());
+            //System.out.println("Class: "+ llContent.get(0));
+
+            for(int j=0; j<llLineNum.size(); j++){
+
+                String nodelabel = llLineNum.get(j)+j;
+                String noderule = llType.get(j);
+                String nodecontent = llContent.get(j);
+                String nodeline = Integer.toString(llCodeLine.get(j));
+                String nodecharpos = Integer.toString(llCharPos.get(j));
+
+                String mname;
+                ArrayList<String> arguments = new ArrayList<String>();
+                ArrayList<String> RTStrings = new ArrayList<String>();
+                ArrayList<String> RTLabels = new ArrayList<String>();
+
+                if(noderule.startsWith("normalClassDeclaration")){
+                    classlabel = nodelabel;
+                    classrule = noderule;
+                    classcontent = nodecontent;
+                    classline = nodeline;
+                    classcharpos = nodecharpos;
+                }
+
+                if(noderule.startsWith("methodInvocation")){
+
+                    // If you find methodInvocation_lfno_primary - get the TmethodName
+                    // Stop and collect the className from Trap
+                    // find the TmethodName in the class
+
+                    if(noderule.equals("methodInvocation_lfno_primary")){
+
+                        // get the TmethodName
+
+                        //System.out.println("REACHED CHECK STAGE");
+
+                        RuleContext rctx = getctxForCombinationMagicVersion(currentmctx, nodelabel, noderule, nodecontent, nodeline, nodecharpos);
+                        mname = getMethodNameFromctxMagicVersion(rctx);
+
+                        //System.out.println("TADA! method inv. found: "+ mname);
+
+                        //get class ctx
+                        RuleContext cctx = getctxForCombinationMagicVersion(currentmctx, classlabel, classrule, classcontent, classline, classcharpos);
+
+                        //find TmethodName label inside class ctx => cctx
+                        String RTmethodlbl = getLabelsForMethodDeclaratorSMagicVersion(baseClassTargetArray, cctx, mname);
+
+                        //System.out.println("Method LABEL: "+ RTmethodlbl);
+
+                        //get methodDeclaration CTX
+                        RuleContext rxpctx = getParentMethodDeclMagicVersion(baseClassTargetArray, RTmethodlbl);
+
+                        if(!rxpctx.equals(currentmctx) && !rxpctx.equals(null)){
+                            RTStrings = getReturnStatementsMagicVersion(rxpctx);
+                            //System.out.println("RET SIXE: "+RTStrings.size());
+
+                            for(int l=0; l<RTStrings.size(); l++){
+
+                                ArrayList<String> iniRTLabels = new ArrayList<String>();
+                                iniRTLabels = getRetLabelsMagicVersion(baseClassTargetArray, rxpctx, RTStrings.get(l));
+
+                                for(int m=0; m<iniRTLabels.size(); m++){
+                                    RTLabels.add(iniRTLabels.get(m));
+                                }
+                            }
+
+                            // We have all Return Labels in RTLabels
+                            // We have the current methodInvocation_lfno_primary as locallabel
+                            // Connect from RetLabels to locallabel
+
+                            for(int m=0; m<RTLabels.size(); m++){
+                                System.out.println((Integer.toString(1000+i))+RTLabels.get(m)+"->"+(Integer.toString(1000+i))+nodelabel + " [label=\"RT\", color=\"lime\"]");
+                            }
+
+
+                        }
+                        
+
+
+                    }
+
+                    // If you find methodInvocation_lf_primary - get the TmethodName
+                    // Stop and collect the className from classInstanceCreationExpression_lfno_primary
+                    // iterate over baseClassTargetArray (Type = ClassDeclaration) and try to match the className
+                    // Once you find a matching className get ctx 
+                    // and then find the TmethodName in the class
+
+                    else if(noderule.equals("methodInvocation_lf_primary")){
+
+                        RuleContext rctx = getctxForCombinationMagicVersion(currentmctx, nodelabel, noderule, nodecontent, nodeline, nodecharpos);
+                        mname = getMethodName2FromctxMagicVersion(rctx);
+
+                        System.out.println("YEAH >> "+mname);
+
+
+                    }
+
+
+                    // If you find only just methodInvocation
+
+
+
+                }
+
+
+
+
+            }
+
+
+        }
+
+
+
+
+
+    }
+
+    private static RuleContext getctxForCombinationMagicVersion(RuleContext ctx, String label, String rule, String content, String line, String charpos){
+
+        for(int i=0; i<ctx.getChildCount(); i++){
+            ParseTree element = ctx.getChild(i);
+            if(element instanceof RuleContext){
+                RuleContext localctx = (RuleContext) element;
+                if(rule.equals(Java8Parser.ruleNames[localctx.getRuleIndex()]) && content.equals(localctx.getText()) && line.equals(Integer.toString(((ParserRuleContext) localctx).getStart().getLine())) && charpos.equals(Integer.toString(((ParserRuleContext) localctx).getStart().getCharPositionInLine())) ){
+                    //System.out.println("Right ctx found");
+                    return localctx;                    
+                } else {
+                    RuleContext returnctx = getctxForCombinationMagicVersion(localctx, label, rule, content, line, charpos);
+                    if(!returnctx.equals(currentmctx) && !returnctx.equals(null)){
+                            return returnctx;
+                    }
+                }
+            } else if (element instanceof TerminalNode){
+                continue;
+            }
+        }
+
+        return currentmctx;        
+
+    }
+
+    private static String getLabelsForMethodDeclaratorSMagicVersion(ArrayList[] baseClassTargetArray, RuleContext ctx, String methodName){
+        String rule = "methodDeclarator";
+        String mLabel = "";
+
+        ArrayList<String> expLabels = new ArrayList<String>();
+        ArrayList<String> expLabelsRET = new ArrayList<String>();
+
+        for(int i=0; i<ctx.getChildCount(); i++){
+            ParseTree element = ctx.getChild(i);
+            if(element instanceof RuleContext){
+                RuleContext localctx = (RuleContext) element;
+
+
+
+                if(rule.equals(Java8Parser.ruleNames[localctx.getRuleIndex()])){
+
+                    String[] parts = localctx.getText().split("\\(", 2);
+
+
+
+                    boolean contains = Arrays.stream(parts).anyMatch(methodName::equals);
+
+                    if(contains){
+                        //System.out.println("INDE");
+                        mLabel = getlabelForContextMagicVersion(baseClassTargetArray, localctx);
+                        return mLabel;
+                    }
+
+                } else {
+                    mLabel = getLabelsForMethodDeclaratorSMagicVersion(baseClassTargetArray, localctx, methodName);
+                    if(!mLabel.equals("") && !mLabel.equals("NF")){
+                        return mLabel;
+                    }
+                }
+            }
+        }
+
+        return mLabel;
+    }
+
+    private static String getlabelForContextMagicVersion(ArrayList[] baseClassTargetArray, RuleContext ctx){     
+
+        ArrayList<String> LineNum = baseClassTargetArray[0];
+        ArrayList<String> Type = baseClassTargetArray[1];
+        ArrayList<String> Content = baseClassTargetArray[2];
+        ArrayList<Integer> CodeLine = baseClassTargetArray[3];
+        ArrayList<Integer> CharPos = baseClassTargetArray[4];
+
+
+        String rule;
+        String content;
+        String line;
+        String charpos;
+
+        rule = Java8Parser.ruleNames[ctx.getRuleIndex()];
+        content = ctx.getText();
+        line = Integer.toString(((ParserRuleContext) ctx).getStart().getLine());
+        charpos = Integer.toString(((ParserRuleContext) ctx).getStart().getCharPositionInLine());
+
+        for(int i=0; i<LineNum.size(); i++){
+
+            String locallabel = LineNum.get(i)+i;
+            String localrule = Type.get(i);
+            String localcontent = Content.get(i);
+            String localline = Integer.toString(CodeLine.get(i));
+            String localcharpos = Integer.toString(CharPos.get(i));
+
+            if(localrule.equals(rule) && localcontent.equals(content) && localline.equals(line) && localcharpos.equals(charpos)){
+                //System.out.println("matched");
+                return locallabel;
+            }
+        }
+        return "NF";
+    }    
+
+    private static RuleContext getParentMethodDeclMagicVersion(ArrayList[] baseClassTargetArray, String RTmethodlbl){
+
+        ArrayList<String> LineNum = baseClassTargetArray[0];
+        ArrayList<String> Type = baseClassTargetArray[1];
+        ArrayList<String> Content = baseClassTargetArray[2];
+        ArrayList<Integer> CodeLine = baseClassTargetArray[3];
+        ArrayList<Integer> CharPos = baseClassTargetArray[4];
+
+        RuleContext rctx = currentmctx;
+
+        String mlabel = "";
+        String mrule = "";
+        String mcontent = "";
+        String mline = "";
+        String mcharpos = "";
+
+        for(int i=0; i<LineNum.size(); i++){
+
+            String locallabel = LineNum.get(i)+i;
+            String localrule = Type.get(i);
+            String localcontent = Content.get(i);
+            String localline = Integer.toString(CodeLine.get(i));
+            String localcharpos = Integer.toString(CharPos.get(i));
+
+            if(localrule.startsWith("methodDeclaration")){
+                mlabel = locallabel;
+                mrule = localrule;
+                mcontent = localcontent;
+                mline = localline;
+                mcharpos = localcharpos;
+            }
+
+            if(locallabel.equals(RTmethodlbl)){
+                
+                rctx = getctxForCombinationMagicVersion(currentmctx, mlabel, mrule, mcontent, mline, mcharpos);
+                return rctx;
+            }
+
+        }
+
+        return rctx;
+
+    }    
+    
+    private static ArrayList getReturnStatementsMagicVersion(RuleContext ctx){
+        String rule = "returnStatement";
+        ArrayList<String> retStmts = new ArrayList<String>();
+        ArrayList<String> retStmtsRET = new ArrayList<String>();
+
+        //System.out.println(ctx.getChildCount());
+
+        for(int i=0; i<ctx.getChildCount(); i++){
+            ParseTree element = ctx.getChild(i);
+            if(element instanceof RuleContext){
+                RuleContext localctx = (RuleContext) element;
+
+                //System.out.println(localctx.getText());
+
+
+                if(rule.equals(Java8Parser.ruleNames[localctx.getRuleIndex()])){
+                    
+                    retStmts.add(localctx.getText());
+                } else {
+                    retStmtsRET = getReturnStatementsMagicVersion(localctx);
+                    for(int j=0; j<retStmtsRET.size(); j++){
+                        retStmts.add(retStmtsRET.get(j));
+                    }
+                }
+            }
+        }
+
+        return retStmts;
+    }
+
+
+    private static ArrayList getRetLabelsMagicVersion(ArrayList[] baseClassTargetArray, RuleContext ctx, String retContent){
+        String rule = "returnStatement";
+        ArrayList<String> retLabels = new ArrayList<String>();
+        ArrayList<String> retLabelsRET = new ArrayList<String>();
+
+        for(int i=0; i<ctx.getChildCount(); i++){
+            ParseTree element = ctx.getChild(i);
+            if(element instanceof RuleContext){
+                RuleContext localctx = (RuleContext) element;
+                if(rule.equals(Java8Parser.ruleNames[localctx.getRuleIndex()])){
+                    if(retContent.equals(localctx.getText())){
+                        String rc = getlabelForContextMagicVersion(baseClassTargetArray, localctx);
+                        if(!rc.equals("NF")){
+                            retLabels.add(rc);
+                        }    
+                    }
+                } else {
+                    retLabelsRET = getRetLabelsMagicVersion(baseClassTargetArray, localctx, retContent);
+                    for(int j=0; j<retLabelsRET.size(); j++){
+                        retLabels.add(retLabelsRET.get(j));
+                    }
+                }
+            }
+        }
+
+        return retLabels;
+    }
+
+    private static String getMethodNameFromctxMagicVersion(RuleContext ctx){
+        String rule = "methodName";
+        String mname = "";
+
+        for(int i=0; i<ctx.getChildCount(); i++){
+
+            ParseTree element = ctx.getChild(i);
+            if(element instanceof RuleContext){
+                RuleContext localctx = (RuleContext) element;
+                if(rule.equals(Java8Parser.ruleNames[localctx.getRuleIndex()])){
+                    return (localctx.getText());
+                } 
+            }
+
+        }
+
+        return mname;
+    }    
+
+    private static String getMethodName2FromctxMagicVersion(RuleContext ctx){
+        String rule = "methodName";
+        String mname = "";
+
+        for(int i=0; i<ctx.getChildCount(); i++){
+
+            ParseTree element = ctx.getChild(i);
+            if(element instanceof RuleContext){
+                RuleContext localctx = (RuleContext) element;
+
+                return localctx.getText().replaceAll("^.+", "").split("\\(", 2)[0];
+                // if(rule.equals(Java8Parser.ruleNames[localctx.getRuleIndex()])){
+                //     return (localctx.getText());
+                // } 
+            }
+
+        }
+
+        return mname;
+    }    
+
     // @@@@@@@@@@@@@@@@@@@@@@@@
 
-    private static void printReturnsTo(){
+    private static void printReturnsToOLDVER(){
 
         String classlabel = "";
         String classrule = "";
@@ -195,7 +589,7 @@ public class ASTGenerator {
 
     }
 
-    private static void printFormalArgs(){
+    private static void printFormalArgsOLDVER(){
 
         String classlabel = "";
         String classrule = "";
