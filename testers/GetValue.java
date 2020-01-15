@@ -5,7 +5,7 @@ public class GetValue{
         System.out.println("ABC");
     }
 
-    public int getInt(){
-        return 20;
+    public int getInt(int param){
+        return (param*4);
     }
 }

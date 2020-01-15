@@ -12,7 +12,7 @@ public class CallGraphs
 
 		int x = 5; 
 		int y = 5;
-		int z = new GetValue().getInt();
+		//int z = new GetValue().getInt(x);
 
 		int a = foo(x, y);
 		int b = 20;
@@ -32,7 +32,7 @@ public class CallGraphs
 		int y = -4;
 		
 		while(x > 0) {
-			x = x+x+y;
+			x = x+y;
 		}
 			
 	}
